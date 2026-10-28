@@ -247,33 +247,44 @@ async function loadShort(n){const S=SHORT[n];if(S.busy)return;S.busy=true;if(!S.
  const L=[SCRIPT_URL?SCRIPT_URL+"?sheet="+encodeURIComponent(S.name):null,TAB(S.name)].filter(Boolean);
  try{let d;for(const u of L){try{const r=await tfetch(u+'&t='+Date.now(),25000);const t=await r.text();if(/^\s*</.test(t)||/^ERROR/.test(t))throw 0;d=Papa.parse(t,{skipEmptyLines:true}).data;break}catch(_){}}
   if(!d)throw Error('load');S.d=d;cset('sh'+n,d);rShort(n)}catch(e){if(!S.d)$('tb'+n).innerHTML='<p class=err style="padding:12px">Could not load the '+S.name+' tab.</p>'}S.busy=false}
-function shortData(n){const d=SHORT[n].d||[];const hi=d.findIndex(r=>r.filter(c=>(c||'').toString().trim()).length>=2);if(hi<0)return null;
- const H=d[hi].map(c=>(c||'').toString().trim());const ix=re=>H.findIndex(h=>re.test(h));
- const c={date:ix(/date|day|month|تاريخ|يوم|شهر/i),hub:ix(/hub|فرع/i),con:ix(/contractor|مقاول|office|مكتب/i),name:ix(/star.*name|name|اسم|مندوب/i),id:ix(/star.?id|^id$|fawry/i)};
- let R=d.slice(hi+1).filter(r=>r.some(x=>(x||'').toString().trim()));
- if(U.contractor!='*'&&c.con>=0)R=R.filter(r=>N(r[c.con])==N(U.contractor));return {H,R,c}}
-function shortFiltered(n){const x=shortData(n);if(!x)return null;const {R,c}=x,fd=$('fd'+n).value,dk=r=>{const d=dParse(r[c.date]);return d?(n==8?iso(d).slice(0,7):iso(d)):''},q=N($('fq'+n).value),fh=$('fh'+n).value,fc=$('fc'+n).value;
- return {...x,F:R.filter(r=>(!fd||c.date<0||dk(r)==fd)&&(!fh||(r[c.hub]||'').trim()==fh)&&(!fc||(r[c.con]||'').trim()==fc)&&(!q||N((c.name>=0?r[c.name]:'')+' '+(c.id>=0?r[c.id]:'')+' '+(c.name<0&&c.id<0?r.join(' '):'')).includes(q)))}}
+function titleDate(t,n){t=(t||'').toString().replace(/shortage|daily|monthly|العجز|يومي|شهري/ig,' ').trim();if(!t)return null;
+ let m=t.match(/(\d{1,2})\s*[-\/ ]?\s*([A-Za-z]{3,})\.?(?:\D+(\d{4}))?/)||null,d=null;
+ if(m&&MN[m[2].slice(0,3).toLowerCase()]!=null)d=[m[3]?+m[3]:null,MN[m[2].slice(0,3).toLowerCase()],+m[1]];
+ if(!d){m=t.match(/([A-Za-z]{3,})\.?\s*(\d{1,2})?(?:\D+(\d{4}))?/);if(m&&MN[m[1].slice(0,3).toLowerCase()]!=null){const x=m[2]&&+m[2]<=31&&!(m[3]==null&&+m[2]>31)?+m[2]:1;d=[m[3]?+m[3]:null,MN[m[1].slice(0,3).toLowerCase()],n==8?1:x]}}
+ if(!d){const x=dParse(t);return x}
+ let y=d[0];if(!y){y=new Date().getFullYear();if(new Date(y,d[1],d[2])>new Date(Date.now()+2*864e5))y--}return new Date(y,d[1],d[2])}
+function shortData(n){const d=SHORT[n].d||[];let H=null,cur=null;const R=[];const isHdr=r=>r.some(c=>/star\s*id|full\s*name|^name$|اسم/i.test((c||'').toString().trim()));
+ for(const r of d){const ne=r.map(c=>(c||'').toString().trim()).filter(Boolean);if(!ne.length)continue;
+  if(ne.length<=2&&!isHdr(r)){const td=titleDate(ne.join(' '),n);if(td){cur=td;continue}}
+  if(isHdr(r)){if(!H)H=r.map(c=>(c||'').toString().trim());continue}
+  if(!H){if(ne.length>=2){H=r.map(c=>(c||'').toString().trim())}continue}
+  const row=r.slice();row._d=cur;R.push(row)}
+ if(!H)return null;const ix=re=>H.findIndex(h=>re.test(h));
+ const c={date:ix(/^(date|day|month|تاريخ|يوم|شهر)$/i),hub:ix(/hub|فرع/i),con:ix(/contractor|مقاول|office|مكتب/i),name:ix(/star.*name|full\s*name|name|اسم|مندوب/i),id:ix(/star.?id|^id$/i)};
+ R.forEach(r=>{if(!r._d&&c.date>=0)r._d=dParse(r[c.date])});c.dated=R.some(r=>r._d);
+ let RR=R;if(U.contractor!='*'&&c.con>=0)RR=R.filter(r=>N(r[c.con])==N(U.contractor));return {H,R:RR,c}}
+function shortFiltered(n){const x=shortData(n);if(!x)return null;const {R,c}=x,fd=$('fd'+n).value,dk=r=>{const d=r._d;return d?(n==8?iso(d).slice(0,7):iso(d)):''},q=N($('fq'+n).value),fh=$('fh'+n).value,fc=$('fc'+n).value;
+ return {...x,F:R.filter(r=>(!fd||!c.dated||dk(r)==fd)&&(!fh||(r[c.hub]||'').trim()==fh)&&(!fc||(r[c.con]||'').trim()==fc)&&(!q||N((c.name>=0?r[c.name]:'')+' '+(c.id>=0?r[c.id]:'')+' '+(c.name<0&&c.id<0?r.join(' '):'')).includes(q)))}}
 function dParse(v){v=(v||'').toString().trim();if(!v)return null;const sp=v.match(/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/);if(sp)return new Date(+sp[3],sp[2]-1,+sp[1]);
  const m=v.match(/([A-Za-z]{3,})\.?\s+(\d{1,2})(?:\D+(\d{4}))?/);if(m&&MN[m[1].slice(0,3).toLowerCase()]!=null&&!/^\d/.test(v)){return new Date(m[3]?+m[3]:new Date().getFullYear(),MN[m[1].slice(0,3).toLowerCase()],+m[2])}
  const mo=v.match(/^([A-Za-z]{3,})\s+(\d{4})$/);if(mo&&MN[mo[1].slice(0,3).toLowerCase()]!=null)return new Date(+mo[2],MN[mo[1].slice(0,3).toLowerCase()],1);
  const ym=v.match(/^(\d{4})-(\d{1,2})$/);if(ym)return new Date(+ym[1],ym[2]-1,1);return pd(v)}
-function dKeys(n){const x=shortData(n);if(!x||x.c.date<0)return [];return [...new Set(x.R.map(r=>{const d=dParse(r[x.c.date]);return d?(n==8?iso(d).slice(0,7):iso(d)):''}).filter(Boolean))].sort()}
+function dKeys(n){const x=shortData(n);if(!x||!x.c.dated)return [];return [...new Set(x.R.map(r=>{const d=r._d;return d?(n==8?iso(d).slice(0,7):iso(d)):''}).filter(Boolean))].sort()}
 function todayKey(n){const t=iso(new Date());return n==8?t.slice(0,7):t}
 function todayD(n){$('fd'+n).value=todayKey(n);rShort(n)}
 function stepD(n,k){const ks=dKeys(n),cur=$('fd'+n).value||todayKey(n);let t;
  if(ks.length){t=k<0?[...ks].reverse().find(x=>x<cur):ks.find(x=>x>cur)}
  if(!t){const d=new Date((cur.length==7?cur+'-01':cur)+'T00:00:00');if(n==8)d.setMonth(d.getMonth()+k);else d.setDate(d.getDate()+k);t=n==8?iso(d).slice(0,7):iso(d)}
  $('fd'+n).value=t;rShort(n)}
-function rShort(n){const x0=shortData(n);if(x0&&x0.c.date>=0&&!$('fd'+n).value){const ks=dKeys(n),tk=todayKey(n);$('fd'+n).value=ks.includes(tk)||!ks.length?tk:([...ks].reverse().find(k=>k<=tk)||ks[ks.length-1])}
- $('fd'+n).parentNode.style.display=x0&&x0.c.date<0?'none':'';
+function rShort(n){const x0=shortData(n);if(x0&&x0.c.dated&&!$('fd'+n).value){const ks=dKeys(n),tk=todayKey(n);$('fd'+n).value=ks.includes(tk)||!ks.length?tk:([...ks].reverse().find(k=>k<=tk)||ks[ks.length-1])}
+ $('fd'+n).parentNode.style.display='';if(!$('fd'+n).value)$('fd'+n).value=todayKey(n);
  const x=shortFiltered(n);if(!x){$('tb'+n).innerHTML='<p class=mu style="padding:12px">No data in the '+SHORT[n].name+' tab yet.</p>';return}
  const {H,R,F,c}=x;$('fh'+n).parentNode.parentNode.style.display=c.hub>=0?'':'none';fill('fh'+n,c.hub>=0?R.map(r=>r[c.hub]):[]);
  $('fc'+n).value='';fill('fc'+n,c.con>=0?R.map(r=>r[c.con]):[]);
  const cols=H.map((h,i)=>[i,h||'—']).filter(([i])=>R.some(r=>(r[i]||'').toString().trim())||H[i]);
- $('tb'+n).innerHTML=`<table><thead><tr>${cols.map(([i,h])=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${F.map(r=>`<tr>${cols.map(([i])=>`<td>${nf(r[i])}</td>`).join('')}</tr>`).join('')}</tbody></table><p class=mu>${F.length} rows</p>`;if(!F.length&&c.date>=0){const ks=dKeys(n);$('tb'+n).innerHTML='<p class=mu style="padding:16px">No shortage for this '+(n==8?'month':'date')+'.'+(ks.length?' Latest: <a href="#" onclick="$(\'fd'+n+'\').value=\''+ks[ks.length-1]+'\';rShort('+n+');return false">'+ks[ks.length-1]+'</a>':'')+'</p>'}applyLang()}
+ $('tb'+n).innerHTML=`<table><thead><tr>${cols.map(([i,h])=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${F.map(r=>`<tr>${cols.map(([i])=>`<td>${nf(r[i])}</td>`).join('')}</tr>`).join('')}</tbody></table><p class=mu>${F.length} rows</p>`;if(!F.length&&c.dated){const ks=dKeys(n);$('tb'+n).innerHTML='<p class=mu style="padding:16px">No shortage for this '+(n==8?'month':'date')+'.'+(ks.length?' Latest: <a href="#" onclick="$(\'fd'+n+'\').value=\''+ks[ks.length-1]+'\';rShort('+n+');return false">'+ks[ks.length-1]+'</a>':'')+'</p>'}applyLang()}
 function dlShort(n){if(typeof XLSX=='undefined'){alert('Excel library not loaded, check internet connection');return}const x=shortFiltered(n);if(!x||!x.F.length){alert('No data to download');return}
- const aoa=[x.H,...x.F];const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=x.H.map((h,i)=>({wch:Math.min(40,Math.max(String(h).length,...x.F.map(r=>String(r[i]??'').length))+2)}));
+ const aoa=x.c.date<0&&x.c.dated?[['Date',...x.H],...x.F.map(r=>[r._d?iso(r._d):'',...r])]:[x.H,...x.F];const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=x.H.map((h,i)=>({wch:Math.min(40,Math.max(String(h).length,...x.F.map(r=>String(r[i]??'').length))+2)}));
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,SHORT[n].name.slice(0,31));const who=(U.contractor=='*'?'All':U.contractor).replace(/[^\w ]+/g,'').trim();XLSX.writeFile(wb,`${SHORT[n].name} - ${who} - ${$('fd'+n).value||iso(new Date())}.xlsx`)}
 // ---------- Arabic / English ----------
 const AR={'Home':'الرئيسية','Contractor ACQ':'استقطاب المقاولين','ACQ Analytics':'تحليلات الاستقطاب','Schema & Hub Location':'التسعيرة ومواقع الفروع','Communication':'التواصل','Star Salary':'رواتب المناديب','Shortage Daily':'العجز اليومي','Shortage Monthly':'العجز الشهري','🟢 Activity':'🟢 النشاط','Logout':'تسجيل الخروج',
