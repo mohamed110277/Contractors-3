@@ -608,14 +608,13 @@ async function frPdf(){if(typeof html2canvas=='undefined'||!window.jspdf){alert(
  const btn=$('frPdfBtn');btn.disabled=true;btn.textContent='⏳ جاري التحميل…';
  const box=document.createElement('div');box.style.cssText='position:fixed;left:-10000px;top:0;width:1000px;background:#fff';box.innerHTML='<div class="fr" dir="rtl" lang="ar" style="padding:28px"></div>';document.body.appendChild(box);
  const F=box.firstChild,src=document.querySelector('#v9 .fr');
- try{const parts=[];const add=h=>{const d=document.createElement('div');d.innerHTML=h;F.appendChild(d);parts.push(d)};
-  add(src.querySelector('.fr-top').outerHTML+src.querySelector('.fr-h1').outerHTML);$('frBody').querySelectorAll('section').forEach(s=>add(s.outerHTML));
-  const {jsPDF}=window.jspdf,pdf=new jsPDF({orientation:'p',unit:'mm',format:'a4'}),W=210,H=297,M=8,CW=W-2*M;let y=M;
-  for(const p of parts){const cv=await html2canvas(p,{scale:2,backgroundColor:'#fff'});let h=cv.height*CW/cv.width;
-   if(y+h>H-M&&y>M){pdf.addPage();y=M}
-   if(h<=H-2*M){pdf.addImage(cv.toDataURL('image/jpeg',.92),'JPEG',M,y,CW,h);y+=h+3;continue}
-   const pxPer=cv.width/CW;let off=0;while(off<cv.height){const avail=(H-M-y)*pxPer,sh=Math.min(avail,cv.height-off),c=document.createElement('canvas');c.width=cv.width;c.height=sh;c.getContext('2d').drawImage(cv,0,off,cv.width,sh,0,0,cv.width,sh);
-    pdf.addImage(c.toDataURL('image/jpeg',.92),'JPEG',M,y,CW,sh/pxPer);off+=sh;y+=sh/pxPer+3;if(off<cv.height){pdf.addPage();y=M}}}
+ try{F.innerHTML=src.querySelector('.fr-top').outerHTML+src.querySelector('.fr-h1').outerHTML+$('frBody').innerHTML;
+  const fr=F.getBoundingClientRect(),cuts=new Set();F.querySelectorAll('tr,.fr-sh,section,.fr-h1').forEach(el=>{const r=el.getBoundingClientRect();cuts.add(Math.round(r.bottom-fr.top));if(el.tagName=='SECTION')cuts.add(Math.round(r.top-fr.top))});
+  const C=[...cuts].sort((x,y)=>x-y),S=2,cv=await html2canvas(F,{scale:S,backgroundColor:'#fff',windowWidth:1000});
+  const {jsPDF}=window.jspdf,pdf=new jsPDF({orientation:'p',unit:'mm',format:'a4'}),W=210,H=297,M=8,CW=W-2*M,total=cv.height/S,pageH=(H-2*M)*(cv.width/S)/CW;
+  let st=0,first=true;while(st<total-2){let en=st+pageH;if(en<total){const ok=C.filter(c=>c>st+40&&c<=en);if(ok.length)en=ok[ok.length-1]}else en=total;
+   const c=document.createElement('canvas');c.width=cv.width;c.height=Math.round((en-st)*S);c.getContext('2d').drawImage(cv,0,Math.round(st*S),cv.width,c.height,0,0,cv.width,c.height);
+   if(!first)pdf.addPage();first=false;pdf.addImage(c.toDataURL('image/jpeg',.92),'JPEG',M,M,CW,(en-st)*CW/(cv.width/S));st=en}
   const who=(U&&U.contractor!='*'?U.contractor:'Bosta').replace(/[^\w ]+/g,'').trim();pdf.save(`Fleet House Rules - ${who}.pdf`)}
  catch(e){alert('Could not create PDF: '+e.message)}finally{box.remove();btn.disabled=false;btn.textContent='⬇ تحميل القواعد PDF'}}
 </script></body></html>
