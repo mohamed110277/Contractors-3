@@ -280,13 +280,13 @@ function absKeys(){return [...new Set((ABS||[]).map(absKey).filter(Boolean))].so
 function absToday(){$('fd10').value=iso(new Date());$('fd10').dataset.auto=$('fd10').value;rAbs()}
 function absStep(k){const ks=absKeys(),cur=$('fd10').value||iso(new Date());let t=ks.length?(k<0?[...ks].reverse().find(x=>x<cur):ks.find(x=>x>cur)):null;if(!t){const d=new Date(cur+'T00:00:00');d.setDate(d.getDate()+k);t=iso(d)}$('fd10').value=t;rAbs()}
 function absFiltered(){const fd=$('fd10').value,q=N($('fq10').value),fh=$('fh10').value,fr=$('fr10').value;const R=(ABS||[]).filter(r=>absKey(r)==fd);
- return {R,F:R.filter(r=>{const rs=(r.reason||r.sheet_reason||'').trim();return (!fh||(r.hub||'').trim()==fh)&&(!fr||(fr=='missing'?!rs:!!rs))&&(!q||N(r.name+' '+r.star_id+' '+r.fawry).includes(q))})}}
+ return {R,F:R.filter(r=>{const rs=(absR(r)).trim();return (!fh||(r.hub||'').trim()==fh)&&(!fr||(fr=='missing'?!rs:!!rs))&&(!q||N(r.name+' '+r.star_id+' '+r.fawry).includes(q))})}}
 function rAbs(){const el=$('fd10'),tk=iso(new Date());if(!el.value||el.dataset.auto==el.value&&el.dataset.auto!=tk)el.value=tk;el.dataset.auto=el.value==tk?tk:(el.dataset.auto||'');
- if(!ABS){return}const {R,F}=absFiltered();fill('fh10',R.map(r=>r.hub));const done=R.filter(r=>(r.reason||r.sheet_reason||'').trim()).length;
+ if(!ABS){return}const {R,F}=absFiltered();fill('fh10',R.map(r=>r.hub));const done=R.filter(r=>(absR(r)).trim()).length;
  kp('k10',[['Absent',R.length],['Reason added',done],['Missing reason',R.length-done]]);
  if(!R.length){const ks=absKeys();$('tb10').innerHTML='<p class=mu style="padding:16px">'+(el.value==tk?'No absences for today yet.':'No absences for this date.')+(ks.length?' Latest: <a href="#" onclick="$(\'fd10\').value=\''+ks[ks.length-1]+'\';rAbs();return false">'+ks[ks.length-1]+'</a>':'')+'</p>';applyLang();return}
  const adm=U.contractor=='*';
- $('tb10').innerHTML=`<table><thead><tr><th>Star Id</th><th>Full Name</th><th>Hub</th><th>Star Fawry Id</th><th>Joined At</th>${adm?'<th>Contractor</th>':''}<th style="min-width:260px">Reason</th></tr></thead><tbody>${F.map(r=>{const rs=(r.reason||r.sheet_reason||'');const k=r.k.replace(/"/g,'&quot;');const dv=absDraft[r.k]!=null?absDraft[r.k]:rs;
+ $('tb10').innerHTML=`<table><thead><tr><th>Star Id</th><th>Full Name</th><th>Hub</th><th>Star Fawry Id</th><th>Joined At</th>${adm?'<th>Contractor</th>':''}<th style="min-width:260px">Reason</th></tr></thead><tbody>${F.map(r=>{const rs=(absR(r));const k=r.k.replace(/"/g,'&quot;');const dv=absDraft[r.k]!=null?absDraft[r.k]:rs;
   return `<tr><td>${r.star_id||''}</td><td>${r.name||''}</td><td>${r.hub||''}</td><td>${r.fawry||''}</td><td>${(()=>{const d=pd(r.joined);return d?iso(d):(r.joined||'')})()}</td>${adm?`<td>${r.contractor||''}</td>`:''}<td>${(()=>{const used=+r.r_edits||0,left=Math.max(0,5-used),lock=!adm&&left<=0;
    return `<div class="rsn ${rs?'ok':''} ${lock?'lk':''}"><input data-k="${k}" value="${dv.replace(/"/g,'&quot;')}" placeholder="Write the reason…" ${lock?'disabled':''} oninput="absDraft[this.dataset.k]=this.value" onkeydown="if(event.key=='Enter')saveReason(this)"><button ${lock?'disabled':''} onclick="saveReason(this.previousElementSibling)">${lock?'🔒':'Save'}</button></div>
    <small class="mu">${r.r_time?`✓ ${r.r_office||''} · ${ft(r.r_time)} · `:''}${adm?(used?`<a href="#" class="hist" onclick="showHist('${k}');return false">✎ Edited ${used} time${used>1?'s':''} · View history</a>`:'<span>Not edited by the office</span>'):(lock?'<b class="lkm">No edits left</b>':`${left} of 5 edits left`)}</small>`})()}</td></tr>`}).join('')}</tbody></table><p class=mu>${F.length} rows</p>`;applyLang()}
@@ -302,8 +302,9 @@ async function saveReason(inp){const k=inp.dataset.k,reason=inp.value.trim(),btn
   const r=await tfetch(ACT_URL.replace(/\/$/,'')+'/abs/reason?'+q,20000);const d=JSON.parse(await r.text());if(!d.ok){if(d.error=='limit'){const rw=ABS.find(x=>x.k==k);if(rw)rw.r_edits=d.edits;rAbs();alert('You have used all 5 edits for this star.');return}throw Error(d.error||'error')}
   const row=ABS.find(x=>x.k==k);if(row){row.reason=reason;row.r_office=U.contractor=='*'?'Admin':U.contractor;row.r_time=d.time;row.r_edits=d.edits}delete absDraft[k];cset('abs',ABS);toast('Saved ✓');rAbs()}
  catch(e){btn.disabled=false;btn.textContent='Save';alert('Could not save: '+e.message)}}
+function absR(r){return String((r.r_time||r.reason!=null&&r.r_office)?(r.reason||''):(r.sheet_reason||''))}
 function dlAbs(){if(typeof XLSX=='undefined'){alert('Excel library not loaded, check internet connection');return}const {F}=absFiltered();if(!F.length){alert('No data to download');return}
- const rows=F.map(r=>({'Date':r.date,'Star Id':r.star_id,'Full Name':r.name,'Hub':r.hub,'Star Fawry Id':r.fawry,'Joined At':r.joined,'Vehicle Type':r.vehicle,'Contractor':r.contractor,'Reason':r.reason||r.sheet_reason||''}));
+ const rows=F.map(r=>({'Date':r.date,'Star Id':r.star_id,'Full Name':r.name,'Hub':r.hub,'Star Fawry Id':r.fawry,'Joined At':r.joined,'Vehicle Type':r.vehicle,'Contractor':r.contractor,'Reason':absR(r)}));
  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Absence');XLSX.writeFile(wb,`Absence - ${(U.contractor=='*'?'All':U.contractor).replace(/[^\w ]+/g,'').trim()} - ${$('fd10').value}.xlsx`)}
 setInterval(()=>{if(typeof U!='undefined'&&U&&(CUR==7||CUR==8))rShort(CUR)},60000);
 function frGo(e,i){e.preventDefault();const el=$('fr-'+i);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})}
